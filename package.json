@@ -2,7 +2,7 @@
   "name": "ags-interactive",
   "private": true,
   "scripts": {
-    "dev": "bash scripts/dev.sh",
+    "dev": "wrangler dev",
     "deploy": "wrangler deploy"
   },
   "devDependencies": {

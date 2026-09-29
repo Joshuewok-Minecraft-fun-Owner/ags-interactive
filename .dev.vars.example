@@ -1,0 +1,6 @@
+# Only for optional local testing with `npm run dev`. Copy to .dev.vars. Production secrets are set in Cloudflare.
+SESSION_SECRET=any-long-random-string
+HOST_KEY=choose-a-host-password
+GODOT_KEY=choose-a-godot-key
+DISCORD_CLIENT_ID=
+DISCORD_CLIENT_SECRET=

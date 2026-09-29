@@ -83,8 +83,7 @@ export default {
     }
 
     // ---- Discord ----
-    const origin = env.PUBLIC_URL || url.origin; // PUBLIC_URL is set by scripts/dev.sh in Codespaces
-    const redirectUri = `${origin}/auth/discord/callback`;
+    const redirectUri = `${url.origin}/auth/discord/callback`;
     if (path === "/auth/discord") {
       const state = crypto.randomUUID();
       const q = new URLSearchParams({ client_id: env.DISCORD_CLIENT_ID, redirect_uri: redirectUri, response_type: "code", scope: "identify", state });
