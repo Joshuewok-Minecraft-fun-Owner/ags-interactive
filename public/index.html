@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AGS Interactive Series</title>
+<style>
+:root{--bg:#f6f5fb;--card:#fff;--ink:#1c1b29;--mut:#6b6880;--acc:#6d4aff;--acc2:#e8e2ff;--bd:#ddd9ee;--ok:#1f9d63;--bad:#d64545;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12111c;--card:#1c1b2b;--ink:#efedf9;--mut:#9c98b5;--acc:#8b6cff;--acc2:#2a2545;--bd:#33304a}}
+:root[data-theme="dark"]{--bg:#12111c;--card:#1c1b2b;--ink:#efedf9;--mut:#9c98b5;--acc:#8b6cff;--acc2:#2a2545;--bd:#33304a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}
+header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:14px 18px;border-bottom:1px solid var(--bd);flex-wrap:wrap}
+.logo{font-weight:800;letter-spacing:.04em;cursor:pointer}
+.logo span{color:var(--acc)}
+nav{display:flex;gap:6px;flex-wrap:wrap}
+nav a{padding:6px 12px;border-radius:99px;color:var(--mut);text-decoration:none;font-size:14px;cursor:pointer}
+nav a.on{background:var(--acc2);color:var(--acc);font-weight:600}
+main{max-width:640px;margin:0 auto;padding:24px 18px 60px}
+h1{font-size:clamp(28px,7vw,42px);line-height:1.1;margin:.4em 0 .3em}
+h2{margin:.2em 0 .6em;font-size:22px}
+p{color:var(--mut);margin:.3em 0 1em}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:20px;margin:16px 0}
+.btn{display:inline-block;border:0;border-radius:12px;padding:12px 20px;font:inherit;font-weight:600;background:var(--acc);color:#fff;cursor:pointer;margin:4px 6px 4px 0}
+.btn.alt{background:var(--acc2);color:var(--acc)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.opt{position:relative;display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;border:2px solid var(--bd);background:var(--card);color:var(--ink);border-radius:12px;padding:14px 16px;margin:8px 0;font:inherit;cursor:pointer;overflow:hidden}
+.opt.sel{border-color:var(--acc)}
+.opt .bar{position:absolute;inset:0 auto 0 0;background:var(--acc2);z-index:0;transition:width .4s}
+.opt span{position:relative;z-index:1}
+.badge{display:inline-block;font-size:12px;font-weight:700;padding:3px 10px;border-radius:99px;background:var(--acc2);color:var(--acc);text-transform:uppercase;letter-spacing:.05em}
+.badge.live{background:var(--ok);color:#fff}
+.timer{font-size:44px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--acc);margin:0}
+.tbar{height:6px;background:var(--acc2);border-radius:9px;overflow:hidden;margin:6px 0 14px}
+.tbar div{height:100%;background:var(--acc);transition:width 1s linear}
+input,textarea,select{width:100%;font:inherit;padding:12px;border-radius:12px;border:1px solid var(--bd);background:var(--bg);color:var(--ink);margin:6px 0}
+textarea{min-height:110px;resize:vertical}
+.note{font-size:13px;color:var(--mut)}
+.ok{color:var(--ok);font-weight:600}
+.err{color:var(--bad);font-weight:600}
+details{margin-top:28px;border:1px dashed var(--bd);border-radius:14px;padding:12px 16px}
+summary{cursor:pointer;color:var(--mut);font-size:14px}
+pre{background:var(--bg);border-radius:10px;padding:10px;overflow-x:auto;font-size:12px}
+.row{display:flex;gap:8px;flex-wrap:wrap}.row>*{flex:1;min-width:120px}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo" onclick="go('home')">AGS<span>.</span>Interactive</div>
+  <nav id="nav"></nav>
+</header>
+<main id="app"></main>
+<script>
+let S=null, me='', meId='', view=(location.hash||'#home').slice(1), pick=null, msg='', off=0, ws, retry=0, sgDone=false;
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const go=v=>location.hash=v;
+window.addEventListener('hashchange',()=>{view=(location.hash||'#home').slice(1);msg='';render()});
+const fmt=ms=>{const s=Math.max(0,Math.ceil(ms/1000));return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')};
+const now=()=>Date.now()+off;
+
+/* ---------- live connection ---------- */
+function connect(){
+  ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/api/ws');
+  ws.onmessage=e=>{const m=JSON.parse(e.data);if(m.type!=='state')return;S=m;off=m.now-Date.now();retry=0;if(m.myVote!==null)pick=null;render()};
+  ws.onclose=()=>setTimeout(connect,Math.min(1000*2**retry++,15000));
+}
+function reconnect(){if(ws){ws.onclose=null;ws.close()}connect()}
+async function api(path,body){
+  const r=await fetch(path,{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(d.error||'Something went wrong.');
+  return d;
+}
+
+/* ---------- views ---------- */
+function home(){return `
+  <span class="badge">AGS Interactive Series</span>
+  <h1>Watch the story unfold live.</h1>
+  <p style="font-size:18px">Help shape the future of the world. You are the unseen force behind the scenes. The characters make their own choices, but you decide what surrounds them.</p>
+  <div><button class="btn" onclick="go('live')">Enter Live Experience</button>
+  <button class="btn alt" onclick="go('account')">Account Settings</button></div>
+  <div class="card"><h2>How it works</h2>
+  <p>Polls appear <b>during</b> scenes while the story keeps moving. Your vote decides something about the world, like what caused a signal or who is waiting in a station, and the result shows up in a scene soon after.</p>
+  <p style="margin:0">After each episode you can suggest what should happen next. Suggestions that get used may be credited.</p></div>`}
+
+function live(){
+  if(!S) return '<p>Connecting to the stream...</p>';
+  let h=`<div><span class="badge live">Live</span> <b style="margin-left:6px">${esc(S.episode)}</b></div>`;
+  if(S.ended) return h+suggest();
+  const p=S.poll;
+  if(!p||p.closed) return h+`<div class="card" style="text-align:center"><h2>No active poll</h2><p style="margin:0">No active poll. Continue watching the stream.</p></div>`+(p&&p.closed?`<p class="note" style="text-align:center">The last poll closed. Watch for its result in an upcoming scene.</p>`:'');
+  const voted=S.myVote, has=voted!==null, left=p.endsAt-now(), pct=Math.max(0,left/(p.dur*1000)*100);
+  h+=`<div class="card"><span class="badge">Poll open</span><h2 style="margin-top:10px">${esc(p.q)}</h2>
+    <p class="timer" id="tm">${fmt(left)}</p><div class="tbar"><div id="tb" style="width:${pct}%"></div></div>`;
+  p.options.forEach((o,i)=>{
+    const w=p.total?Math.round(p.tally[i]/p.total*100):0;
+    h+=`<button class="opt ${(has?voted:pick)===i?'sel':''}" ${has?'disabled':''} onclick="pick=${i};render()">${has?`<div class="bar" style="width:${w}%"></div>`:''}<span>${esc(o)}</span>${has?`<span>${w}%</span>`:''}</button>`;
+  });
+  if(!me) h+=`<p class="err">Log in to vote.</p><button class="btn alt" onclick="go('account')">Account Settings</button>`;
+  else if(has) h+=`<p class="ok">Vote locked in. Thanks, ${esc(me)}!</p><p class="note">${p.total} vote${p.total===1?'':'s'} so far. One vote per account.</p>`;
+  else h+=`<button class="btn" ${pick===null?'disabled':''} onclick="vote()">Submit Vote</button>`;
+  return h+(msg?`<p class="err">${esc(msg)}</p>`:'')+`</div>`;
+}
+async function vote(){try{await api('/api/vote',{choice:pick});msg=''}catch(e){msg=e.message}render()}
+
+function suggest(){return `<div class="card"><span class="badge">Episode complete</span>
+  <h2 style="margin-top:10px">What should happen next?</h2>
+  <p>Suggest something about the world, an event, or a faction. The characters still decide what they do about it.</p>
+  <textarea id="sg" maxlength="400" placeholder="Suggestion box"></textarea>
+  ${me?'':'<p class="err">Log in to submit.</p>'}
+  <button class="btn" ${me?'':'disabled'} onclick="sendSug()">Submit Suggestion</button>
+  <p class="${msg?'err':'note'}">${esc(msg||(sgDone?'Sent! You can send up to 5.':'Suggestions may be credited if used.'))}</p></div>`}
+async function sendSug(){
+  const t=$('sg').value.trim();if(!t)return;
+  try{await api('/api/suggest',{text:t});msg='';sgDone=true;$('sg').value=''}catch(e){msg=e.message}
+  render();
+}
+
+function account(){return `<h2>Account Settings</h2><div class="card">
+  ${me?`<p class="ok">Signed in as ${esc(me)}</p><button class="btn alt" onclick="signOut()">Log out</button>`
+  :`<p>Log in to vote and send suggestions. One vote per account.</p>
+  <input id="un" maxlength="20" placeholder="Username" autocomplete="username">
+  <input id="pw" type="password" placeholder="Password (8+ characters)" autocomplete="current-password">
+  <button class="btn" onclick="authSubmit('login')">Log in</button>
+  <button class="btn alt" onclick="authSubmit('register')">Create account</button>
+  <p class="note">or</p>
+  <button class="btn" style="background:#5865f2" onclick="location.href='/auth/discord'">Log in with Discord</button>`}
+  <p class="err" id="am">${esc(msg)}</p></div>`}
+async function authSubmit(kind){
+  try{await api('/auth/'+kind,{username:$('un').value.trim(),password:$('pw').value});msg='';await initAuth()}
+  catch(e){$('am').textContent=e.message}
+}
+async function signOut(){await fetch('/auth/logout',{method:'POST',credentials:'include'});me='';meId='';reconnect();render()}
+async function initAuth(){
+  try{const r=await fetch('/auth/me',{credentials:'include'});if(r.ok){const u=await r.json();me=u.name;meId=u.id;reconnect();render()}}catch(e){}
+}
+
+/* ---------- render ---------- */
+function render(){
+  $('nav').innerHTML=[['home','Home'],['live','Live'],['account',me?esc(me):'Account']].map(([k,l])=>`<a class="${view===k?'on':''}" onclick="go('${k}')">${l}</a>`).join('');
+  const a=$('app');
+  if(a.contains(document.activeElement)&&/INPUT|TEXTAREA/.test(document.activeElement.tagName)) return;
+  a.innerHTML=view==='live'?live():view==='account'?account():home();
+}
+setInterval(()=>{
+  const p=S&&S.poll;
+  if(view==='live'&&p&&!p.closed){const t=$('tm');if(t){const left=p.endsAt-now();t.textContent=fmt(left);$('tb').style.width=Math.max(0,left/(p.dur*1000)*100)+'%'}}
+},500);
+connect();render();initAuth();
+</script>
+</body>
+</html>

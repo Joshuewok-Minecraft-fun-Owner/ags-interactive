@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AGS Host</title>
+<style>
+:root{--bg:#f6f5fb;--card:#fff;--ink:#1c1b29;--mut:#6b6880;--acc:#6d4aff;--acc2:#e8e2ff;--bd:#ddd9ee;--ok:#1f9d63;--bad:#d64545;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12111c;--card:#1c1b2b;--ink:#efedf9;--mut:#9c98b5;--acc:#8b6cff;--acc2:#2a2545;--bd:#33304a}}
+:root[data-theme="dark"]{--bg:#12111c;--card:#1c1b2b;--ink:#efedf9;--mut:#9c98b5;--acc:#8b6cff;--acc2:#2a2545;--bd:#33304a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}
+header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:14px 18px;border-bottom:1px solid var(--bd);flex-wrap:wrap}
+.logo{font-weight:800;letter-spacing:.04em;cursor:pointer}
+.logo span{color:var(--acc)}
+nav{display:flex;gap:6px;flex-wrap:wrap}
+nav a{padding:6px 12px;border-radius:99px;color:var(--mut);text-decoration:none;font-size:14px;cursor:pointer}
+nav a.on{background:var(--acc2);color:var(--acc);font-weight:600}
+main{max-width:640px;margin:0 auto;padding:24px 18px 60px}
+h1{font-size:clamp(28px,7vw,42px);line-height:1.1;margin:.4em 0 .3em}
+h2{margin:.2em 0 .6em;font-size:22px}
+p{color:var(--mut);margin:.3em 0 1em}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:20px;margin:16px 0}
+.btn{display:inline-block;border:0;border-radius:12px;padding:12px 20px;font:inherit;font-weight:600;background:var(--acc);color:#fff;cursor:pointer;margin:4px 6px 4px 0}
+.btn.alt{background:var(--acc2);color:var(--acc)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.opt{position:relative;display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;border:2px solid var(--bd);background:var(--card);color:var(--ink);border-radius:12px;padding:14px 16px;margin:8px 0;font:inherit;cursor:pointer;overflow:hidden}
+.opt.sel{border-color:var(--acc)}
+.opt .bar{position:absolute;inset:0 auto 0 0;background:var(--acc2);z-index:0;transition:width .4s}
+.opt span{position:relative;z-index:1}
+.badge{display:inline-block;font-size:12px;font-weight:700;padding:3px 10px;border-radius:99px;background:var(--acc2);color:var(--acc);text-transform:uppercase;letter-spacing:.05em}
+.badge.live{background:var(--ok);color:#fff}
+.timer{font-size:44px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--acc);margin:0}
+.tbar{height:6px;background:var(--acc2);border-radius:9px;overflow:hidden;margin:6px 0 14px}
+.tbar div{height:100%;background:var(--acc);transition:width 1s linear}
+input,textarea,select{width:100%;font:inherit;padding:12px;border-radius:12px;border:1px solid var(--bd);background:var(--bg);color:var(--ink);margin:6px 0}
+textarea{min-height:110px;resize:vertical}
+.note{font-size:13px;color:var(--mut)}
+.ok{color:var(--ok);font-weight:600}
+.err{color:var(--bad);font-weight:600}
+details{margin-top:28px;border:1px dashed var(--bd);border-radius:14px;padding:12px 16px}
+summary{cursor:pointer;color:var(--mut);font-size:14px}
+pre{background:var(--bg);border-radius:10px;padding:10px;overflow-x:auto;font-size:12px}
+.row{display:flex;gap:8px;flex-wrap:wrap}.row>*{flex:1;min-width:120px}
+</style>
+</head>
+<body>
+<header style="display:none">
+  <div class="logo" onclick="go('home')">AGS<span>.</span>Interactive</div>
+  <nav id="nav"></nav>
+</header>
+<main>
+<h1 style="font-size:28px">Host controls</h1>
+<div class="card" id="keybox"><input id="hk" type="password" placeholder="Host key (HOST_KEY)"><button class="btn" onclick="setKey()">Unlock</button><p class="err" id="ke"></p></div>
+<div id="panel" style="display:none">
+<div class="card"><h2>Episode</h2>
+ <div class="row"><input id="ep" placeholder="Episode name"><button class="btn alt" onclick="act('episode',{name:$('ep').value})">Set name</button></div>
+ <button class="btn alt" id="endbtn" onclick="act('episode',{ended:!ST.ended})">End episode</button>
+ <p class="note" id="epst"></p></div>
+<div class="card"><h2>Open a poll</h2>
+ <input id="pq" placeholder="Question" value="What is causing the strange signal?">
+ <input id="po" placeholder="Options, comma separated" value="Creature, Rogue AI, Survivor">
+ <div class="row"><input id="pk" placeholder="Godot key (e.g. signal_cause)" value="signal_cause">
+ <select id="pd"><option value="30">30 s</option><option value="45" selected>45 s</option><option value="60">60 s</option><option value="90">90 s</option></select></div>
+ <button class="btn" onclick="openPoll()">Open poll</button><button class="btn alt" onclick="act('close')">Close now</button>
+ <p id="pst" class="note"></p><p class="err" id="pe"></p></div>
+<div class="card"><h2>Suggestions</h2><div id="sgs"></div>
+ <h2 style="margin-top:16px">Credits (used)</h2><p id="cred" class="note"></p></div>
+<div class="card"><h2>Recent results</h2><pre id="res"></pre></div>
+</div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let K=sessionStorage.getItem('hk')||'', ST=null;
+async function call(path,body){
+  const r=await fetch('/api/host/'+path,{method:body===undefined?'GET':'POST',headers:{Authorization:'Bearer '+K,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});
+  const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Error');return d;
+}
+async function setKey(){K=$('hk').value.trim();try{await call('state');sessionStorage.setItem('hk',K);start()}catch(e){$('ke').textContent='Wrong key.'}}
+async function act(p,b){try{await call(p,b||{});$('pe').textContent='';refresh()}catch(e){$('pe').textContent=e.message}}
+function openPoll(){act('poll',{q:$('pq').value,options:$('po').value.split(','),key:$('pk').value,dur:+$('pd').value})}
+async function markUsed(id,used){await call('suggestion',{id,used});refresh()}
+async function refresh(){
+  try{ST=await call('state')}catch(e){return}
+  const p=ST.poll;
+  $('epst').textContent=ST.episode+(ST.ended?' (ended: audience sees the suggestion box)':' (live)');
+  $('endbtn').textContent=ST.ended?'Resume episode':'End episode';
+  $('pst').textContent=!p?'No poll yet.':p.closed?'Last poll closed.':'Open: '+p.q+' | '+p.total+' votes | '+Math.max(0,Math.ceil((p.endsAt-ST.now)/1000))+'s left (approx)';
+  $('sgs').innerHTML=ST.suggestions.length?ST.suggestions.slice().reverse().map(s=>`<label style="display:block;margin:8px 0"><input type="checkbox" style="width:auto;margin-right:8px" ${s.used?'checked':''} onchange="markUsed('${s.id}',this.checked)"><b>${esc(s.by)}</b>: ${esc(s.text)}</label>`).join(''):'<p class="note">None yet.</p>';
+  const used=[...new Set(ST.suggestions.filter(s=>s.used).map(s=>s.by))];
+  $('cred').textContent=used.length?used.join(', '):'Nobody yet.';
+  $('res').textContent=JSON.stringify(ST.results,null,1);
+}
+function start(){$('keybox').style.display='none';$('panel').style.display='block';refresh();setInterval(refresh,2000)}
+if(K){call('state').then(start).catch(()=>{})}
+</script>
+</body>
+</html>
