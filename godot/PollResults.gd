@@ -7,8 +7,8 @@ extends Node
 
 signal poll_result(result: Dictionary)
 
-@export var base_url := "https://YOUR-WORKER-URL"   # no trailing slash
-@export var api_key := ""                           # your GODOT_KEY secret
+@export var base_url := "https://ags-interactive.joshuewok674.workers.dev"   # no trailing slash
+@export var api_key := "AGSFunisvilleAnimationGodot2096"                           # your GODOT_KEY secret
 @export var poll_interval := 4.0
 ## If true, results that closed before Godot started are applied too (useful if you restart mid-episode).
 @export var apply_history := false
