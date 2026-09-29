@@ -66,6 +66,10 @@ pre{background:var(--bg);border-radius:10px;padding:10px;overflow-x:auto;font-si
  <p id="pst" class="note"></p><p class="err" id="pe"></p></div>
 <div class="card"><h2>Suggestions</h2><div id="sgs"></div>
  <h2 style="margin-top:16px">Credits (used)</h2><p id="cred" class="note"></p></div>
+<div class="card"><h2>Reset a viewer's password</h2>
+ <p class="note">There is no email reset, so viewers who forget ask you. Set a temporary password and tell them.</p>
+ <input id="ru" placeholder="Username"><input id="rp" placeholder="New temporary password (8+ characters)">
+ <button class="btn" onclick="resetPw()">Set password</button><p id="rm" class="note"></p></div>
 <div class="card"><h2>Recent results</h2><pre id="res"></pre></div>
 </div>
 </main>
@@ -87,10 +91,15 @@ async function refresh(){
   $('epst').textContent=ST.episode+(ST.ended?' (ended: audience sees the suggestion box)':' (live)');
   $('endbtn').textContent=ST.ended?'Resume episode':'End episode';
   $('pst').textContent=!p?'No poll yet.':p.closed?'Last poll closed.':'Open: '+p.q+' | '+p.total+' votes | '+Math.max(0,Math.ceil((p.endsAt-ST.now)/1000))+'s left (approx)';
-  $('sgs').innerHTML=ST.suggestions.length?ST.suggestions.slice().reverse().map(s=>`<label style="display:block;margin:8px 0"><input type="checkbox" style="width:auto;margin-right:8px" ${s.used?'checked':''} onchange="markUsed('${s.id}',this.checked)"><b>${esc(s.by)}</b>: ${esc(s.text)}</label>`).join(''):'<p class="note">None yet.</p>';
+  $('sgs').innerHTML=ST.suggestions.length?ST.suggestions.slice().sort((a,b)=>(b.ups||0)-(a.ups||0)).map(s=>`<label style="display:block;margin:8px 0"><input type="checkbox" style="width:auto;margin-right:8px" ${s.used?'checked':''} onchange="markUsed('${s.id}',this.checked)"><b>&#9650;${s.ups||0}</b> <b>${esc(s.by)}</b>: ${esc(s.text)}</label>`).join(''):'<p class="note">None yet.</p>';
   const used=[...new Set(ST.suggestions.filter(s=>s.used).map(s=>s.by))];
   $('cred').textContent=used.length?used.join(', '):'Nobody yet.';
   $('res').textContent=JSON.stringify(ST.results,null,1);
+}
+async function resetPw(){
+  const r=await fetch('/auth/admin-reset',{method:'POST',headers:{Authorization:'Bearer '+K,'Content-Type':'application/json'},body:JSON.stringify({username:$('ru').value.trim(),password:$('rp').value})});
+  const d=await r.json().catch(()=>({}));
+  $('rm').className=r.ok?'ok':'err';$('rm').textContent=r.ok?'Done. Tell them the new password.':(d.error||'Error');
 }
 function start(){$('keybox').style.display='none';$('panel').style.display='block';refresh();setInterval(refresh,2000)}
 if(K){call('state').then(start).catch(()=>{})}

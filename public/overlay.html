@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AGS Overlay</title>
+<style>
+/* 1. TRANSPARENT BACKGROUND: OBS only shows what we draw, everything else sees through to your game. */
+html, body { margin: 0; background: transparent; overflow: hidden;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #fff; }
+
+/* 2. THE PANEL: a rounded dark card pinned to a corner. Change top/left/right/width to move or resize. */
+#panel { position: absolute; top: 40px; width: 460px; padding: 22px 24px; border-radius: 20px;
+  background: rgba(18, 17, 28, 0.86); border: 2px solid #8b6cff;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+  opacity: 0; transform: translateY(-12px); transition: opacity .35s, transform .35s; }
+body[data-side="right"] #panel { right: 40px; }
+body[data-side="left"]  #panel { left: 40px; }
+#panel.show { opacity: 1; transform: none; }   /* JS adds the "show" class to fade the panel in */
+
+#tag { display: inline-block; font-size: 15px; font-weight: 800; letter-spacing: .12em;
+  background: #8b6cff; padding: 4px 12px; border-radius: 99px; }
+#tag.closed { background: #6b6880; }
+#q { font-size: 26px; font-weight: 700; line-height: 1.2; margin: 12px 0 8px; }
+#timer { font-size: 54px; font-weight: 800; font-variant-numeric: tabular-nums; color: #b7a5ff; }
+
+/* 3. OPTION ROWS: each has a coloured bar behind the text; JS changes the bar's width to match the vote %. */
+.opt { position: relative; margin: 8px 0; padding: 10px 14px; border-radius: 12px;
+  background: rgba(255,255,255,0.08); overflow: hidden; font-size: 22px; }
+.opt .bar { position: absolute; inset: 0 auto 0 0; width: 0; background: rgba(139,108,255,.55); transition: width .5s; }
+.opt span { position: relative; display: flex; justify-content: space-between; gap: 12px; }
+#foot { margin-top: 14px; font-size: 18px; color: #c9c5e0; }
+#foot b { color: #fff; }
+</style>
+</head>
+<body data-side="right">
+<div id="panel">
+  <span id="tag">VOTE NOW</span>
+  <div id="q"></div>
+  <div id="timer"></div>
+  <div id="opts"></div>
+  <div id="foot"></div>
+</div>
+
+<script>
+// Options you can put in the OBS URL:  /overlay?side=left   (default is right)
+document.body.dataset.side = new URLSearchParams(location.search).get('side') === 'left' ? 'left' : 'right';
+
+const $ = id => document.getElementById(id);
+let S = null, offset = 0, ws, retry = 0;
+let builtFor = null;          // which poll the option rows were built for
+const closedSeen = {};        // pollId -> time we first saw it closed
+
+// 4. LIVE DATA: same WebSocket the website uses. The server pushes a fresh "state" every time anything changes.
+function connect() {
+  ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/api/ws');
+  ws.onmessage = e => {
+    const m = JSON.parse(e.data);
+    if (m.type !== 'state') return;
+    const first = S === null;
+    S = m;
+    offset = m.now - Date.now();        // fixes small clock differences between OBS PC and server
+    retry = 0;
+    const p = m.poll;
+    if (p && p.closed && !(p.id in closedSeen)) closedSeen[p.id] = first ? -Infinity : Date.now();
+  };
+  ws.onclose = () => setTimeout(connect, Math.min(1000 * 2 ** retry++, 10000));
+}
+
+const fmt = ms => { const s = Math.max(0, Math.ceil(ms / 1000));
+  return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); };
+
+// 5. DRAWING: runs 4 times a second. It decides what to show, then updates the page.
+function draw() {
+  const panel = $('panel');
+  const p = S && S.poll;
+  let mode = 'hidden';
+  if (p && !S.ended) {
+    if (!p.closed) mode = 'open';
+    else if (Date.now() - closedSeen[p.id] < 8000) mode = 'closed';   // show "voting closed" for 8 seconds
+  }
+  panel.classList.toggle('show', mode !== 'hidden');
+  if (mode === 'hidden') return;
+
+  if (builtFor !== p.id) {                       // new poll: build the option rows once
+    $('q').textContent = p.q;
+    $('opts').innerHTML = '';
+    p.options.forEach(o => {
+      const row = document.createElement('div');
+      row.className = 'opt';
+      row.innerHTML = '<div class="bar"></div><span><b></b><i></i></span>';
+      row.querySelector('b').textContent = o;    // textContent (not innerHTML) so viewers' text can't inject code
+      $('opts').appendChild(row);
+    });
+    builtFor = p.id;
+  }
+  const rows = $('opts').children;
+  p.options.forEach((_, i) => {                  // every frame: just update the numbers and bar widths
+    const pct = p.total ? Math.round(p.tally[i] / p.total * 100) : 0;
+    rows[i].querySelector('.bar').style.width = pct + '%';
+    rows[i].querySelector('i').textContent = pct + '%';
+  });
+
+  const open = mode === 'open';
+  $('tag').textContent = open ? 'VOTE NOW' : 'VOTING CLOSED';
+  $('tag').classList.toggle('closed', !open);
+  $('timer').textContent = open ? fmt(p.endsAt - (Date.now() + offset)) : '';
+  $('foot').innerHTML = open ? 'Vote at <b></b>' : 'Watch for the result in the story';
+  if (open) $('foot').querySelector('b').textContent = location.host;
+}
+
+connect();
+setInterval(draw, 250);
+</script>
+</body>
+</html>

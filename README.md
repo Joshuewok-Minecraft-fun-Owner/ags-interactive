@@ -42,6 +42,21 @@ Copy `godot/PollResults.gd` into your project and add it as an Autoload named `P
 (Project > Project Settings > Globals > Autoload). Set `base_url` to your Worker address (no trailing
 slash) and `api_key` to your `GODOT_KEY`.
 
+## Godot can open polls too
+`PollResults.open_poll("signal_cause", "What is causing the strange signal?", ["Creature", "Rogue AI", "Survivor"], 45)`
+opens a poll on the site (uses `GODOT_KEY`, not your host password). Call it from a scene script or an
+AnimationPlayer call-method track 30-60 s before the outcome matters. It closes any poll still open.
+
+## Stream overlay (OBS)
+In OBS: Sources > + > Browser. URL `https://YOUR-WORKER-ADDRESS/overlay` (add `?side=left` for the left
+corner). Width 1920, Height 1080. Leave "Custom CSS" as is; the page background is already transparent.
+It appears when a poll opens (with countdown and live results) and disappears when there is no poll.
+The overlay is a separate OBS layer, so your Godot YouTube renders stay clean.
+
+## Passwords
+Viewers can change their password in Account Settings. If someone forgets it, reset it from `/host`
+("Reset a viewer's password") and tell them the temporary one.
+
 ## Check it works
 1. Open your Worker address, click Account Settings, create an account.
 2. Open `/host`, enter `HOST_KEY`, open a poll.

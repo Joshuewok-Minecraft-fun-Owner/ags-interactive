@@ -82,6 +82,34 @@ export default {
       return Response.json({ ok: true }, { headers: await sessionHeaders(env, "pw:" + username.toLowerCase(), rec.name) });
     }
 
+    // ---- Change password (logged in with a username/password account) ----
+    if (path === "/auth/password" && req.method === "POST") {
+      const sess = await verify(cookie(req, "ags_session"), env.SESSION_SECRET);
+      if (!sess || !sess.id.startsWith("pw:")) return fail("Log in with a username and password account first.", 401);
+      const { oldPassword = "", newPassword = "" } = await req.json().catch(() => ({}));
+      if (newPassword.length < 8 || newPassword.length > 128) return fail("New password must be 8-128 characters.");
+      const key = "u:" + sess.id.slice(3);
+      const rec = JSON.parse((await env.USERS.get(key)) || "null");
+      if (!rec || (await hashPw(oldPassword, unb64(rec.salt))) !== rec.hash) return fail("Current password is wrong.", 401);
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+      await env.USERS.put(key, JSON.stringify({ name: rec.name, salt: b64(salt), hash: await hashPw(newPassword, salt) }));
+      return Response.json({ ok: true });
+    }
+
+    // ---- Reset someone's password (you, from the /host page) ----
+    if (path === "/auth/admin-reset" && req.method === "POST") {
+      const bearer = (req.headers.get("Authorization") || "").replace(/^Bearer /, "");
+      if (!env.HOST_KEY || bearer !== env.HOST_KEY) return fail("Unauthorized", 401);
+      const { username = "", password = "" } = await req.json().catch(() => ({}));
+      const key = "u:" + username.toLowerCase();
+      const rec = JSON.parse((await env.USERS.get(key)) || "null");
+      if (!rec) return fail("No account with that username.", 404);
+      if (password.length < 8 || password.length > 128) return fail("Password must be 8-128 characters.");
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+      await env.USERS.put(key, JSON.stringify({ name: rec.name, salt: b64(salt), hash: await hashPw(password, salt) }));
+      return Response.json({ ok: true });
+    }
+
     // ---- Discord ----
     const redirectUri = `${url.origin}/auth/discord/callback`;
     if (path === "/auth/discord") {

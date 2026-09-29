@@ -24,7 +24,13 @@ export class Room {
       poll = { id: p.id, q: p.q, options: p.options, dur: p.dur, endsAt: p.endsAt, closed: p.closed, tally, total: tally.reduce((a, b) => a + b, 0) };
       if (uid && v[uid] !== undefined) myVote = v[uid];
     }
-    return { type: "state", now: Date.now(), episode: s.episode, ended: s.ended, poll, myVote };
+    // Suggestions are only shown to viewers once the episode has ended, most upvoted first.
+    const suggestions = s.ended
+      ? s.suggestions
+          .map((x) => ({ id: x.id, by: x.by, text: x.text, up: (x.ups || []).length, mine: x.uid === uid, voted: !!uid && (x.ups || []).includes(uid) }))
+          .sort((a, b) => b.up - a.up)
+      : [];
+    return { type: "state", now: Date.now(), episode: s.episode, ended: s.ended, poll, myVote, suggestions };
   }
 
   send(ws) {
@@ -102,6 +108,20 @@ export class Room {
       return json({ ok: true });
     }
 
+    if (path === "/api/upvote" && m === "POST") {
+      if (!uid) return json({ error: "Log in to upvote." }, 401);
+      const x = s.suggestions.find((z) => z.id === body.id);
+      if (!x) return json({ error: "Suggestion not found." }, 404);
+      if (x.uid === uid) return json({ error: "You can't upvote your own idea." }, 400);
+      x.ups ||= [];
+      const at = x.ups.indexOf(uid);
+      if (at >= 0) x.ups.splice(at, 1); // clicking again removes your upvote
+      else x.ups.push(uid);
+      await this.save();
+      this.broadcast();
+      return json({ ok: true });
+    }
+
     // ----- Godot (or host) -----
     if (path === "/api/results" && m === "GET") {
       if (role !== "godot" && !host) return json({ error: "Unauthorized" }, 401);
@@ -121,7 +141,7 @@ export class Room {
       if (!host && !godotOk) return json({ error: "Unauthorized" }, 401);
 
       if (path === "/api/host/state") {
-        return json({ ...this.view(""), results: s.results.slice(-10).reverse(), suggestions: s.suggestions.map(({ uid, ...x }) => x) });
+        return json({ ...this.view(""), results: s.results.slice(-10).reverse(), suggestions: s.suggestions.map(({ uid, ups, ...x }) => ({ ...x, ups: (ups || []).length })) });
       }
       if (path === "/api/host/poll" && m === "POST") {
         const options = (body.options || []).map((o) => String(o).trim().slice(0, 60)).filter(Boolean);

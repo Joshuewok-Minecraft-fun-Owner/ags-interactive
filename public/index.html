@@ -104,7 +104,14 @@ function live(){
 }
 async function vote(){try{await api('/api/vote',{choice:pick});msg=''}catch(e){msg=e.message}render()}
 
-function suggest(){return `<div class="card"><span class="badge">Episode complete</span>
+function suggest(){
+  const list=(S.suggestions||[]).map(x=>`<div style="display:flex;gap:12px;align-items:flex-start;margin:12px 0">
+    <button class="btn ${x.voted?'':'alt'}" style="margin:0;padding:8px 12px;min-width:64px" ${x.mine||!me?'disabled':''} onclick="upvote('${x.id}')">&#9650; ${x.up}</button>
+    <div><b>${esc(x.by)}</b>${x.mine?' <span class="note">(you)</span>':''}<br>${esc(x.text)}</div></div>`).join('');
+  return suggestBox()+(list?`<div class="card"><h2>Ideas so far</h2><p class="note">Upvote the ones you like. Click again to undo.</p>${list}</div>`:'');
+}
+async function upvote(id){try{await api('/api/upvote',{id});msg=''}catch(e){msg=e.message}render()}
+function suggestBox(){return `<div class="card"><span class="badge">Episode complete</span>
   <h2 style="margin-top:10px">What should happen next?</h2>
   <p>Suggest something about the world, an event, or a faction. The characters still decide what they do about it.</p>
   <textarea id="sg" maxlength="400" placeholder="Suggestion box"></textarea>
@@ -124,9 +131,19 @@ function account(){return `<h2>Account Settings</h2><div class="card">
   <input id="pw" type="password" placeholder="Password (8+ characters)" autocomplete="current-password">
   <button class="btn" onclick="authSubmit('login')">Log in</button>
   <button class="btn alt" onclick="authSubmit('register')">Create account</button>
+  <p class="note">Forgot your password? Ask the streamer to reset it.</p>
   <p class="note">or</p>
   <button class="btn" style="background:#5865f2" onclick="location.href='/auth/discord'">Log in with Discord</button>`}
+  ${me&&meId.startsWith('pw:')?`<h2 style="margin-top:24px;font-size:18px">Change password</h2>
+  <input id="op" type="password" placeholder="Current password" autocomplete="current-password">
+  <input id="np" type="password" placeholder="New password (8+ characters)" autocomplete="new-password">
+  <button class="btn" onclick="changePw()">Change password</button>`:''}
   <p class="err" id="am">${esc(msg)}</p></div>`}
+async function changePw(){
+  const m=$('am');
+  try{await api('/auth/password',{oldPassword:$('op').value,newPassword:$('np').value});m.className='ok';m.textContent='Password changed.';$('op').value='';$('np').value=''}
+  catch(e){m.className='err';m.textContent=e.message}
+}
 async function authSubmit(kind){
   try{await api('/auth/'+kind,{username:$('un').value.trim(),password:$('pw').value});msg='';await initAuth()}
   catch(e){$('am').textContent=e.message}
