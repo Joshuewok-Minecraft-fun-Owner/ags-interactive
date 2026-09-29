@@ -8,7 +8,7 @@ binding = "ASSETS"
 
 [[kv_namespaces]]
 binding = "USERS"
-id = "PASTE_KV_ID_HERE" # only needed for deploy; local dev simulates KV
+id = "b58ee67a17e2462282ba85e05c4ddb16"
 
 [[durable_objects.bindings]]
 name = "ROOM"
