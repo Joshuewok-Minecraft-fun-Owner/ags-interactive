@@ -116,7 +116,9 @@ export class Room {
 
     // ----- host only -----
     if (path.startsWith("/api/host/")) {
-      if (!host) return json({ error: "Unauthorized" }, 401);
+      // Godot may open/close polls; everything else stays host-only.
+      const godotOk = role === "godot" && (path === "/api/host/poll" || path === "/api/host/close");
+      if (!host && !godotOk) return json({ error: "Unauthorized" }, 401);
 
       if (path === "/api/host/state") {
         return json({ ...this.view(""), results: s.results.slice(-10).reverse(), suggestions: s.suggestions.map(({ uid, ...x }) => x) });
